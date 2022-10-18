@@ -13,25 +13,84 @@ import ads               # Talking to the ADS1256
 import RPi.GPIO as GPIO  # GPIO interactions
 
 # 3rd Party Imports
+from tqdm import trange
+import numpy as np
+import pandas as pd
 
 
-# --- Script Setup ---------------------------------------------------------- #
-# Get the Start Time
-START_TIME = time.time()
+# --- Constants ------------------------------------------------------------- #
+# Default Exit Criteria
+MAX_ITER = 2**16
+MAX_TIME = 3600.  # Seconds
 
 
 # --- Get the ADC ----------------------------------------------------------- #
 def getadc():
+    """Gets the ADC object."""
     
     # Initialize
-    adc = ads.ADS1256()     # Creates the Interface Object in Python
-    adc.ADS1256_init()      # Initializes the ADC
-    adc.ADS1256_SetMode(1)  # Sets to Differential Measurements
+    adc = ads.ADS1256(scanMode=1)     # Creates the Interface Object in Python
+    adc.init()                        # Initializes the ADC
     return adc
+
+
+# --- Main Read Loop -------------------------------------------------------- #
+def readloop(adc, channels=(0,), scale=1, readDT=1, startTime=np.inf,
+             maxIter=MAX_ITER, maxTime=MAX_TIME):
+    """The main loop to get the voltages from the channels"""
+    
+    # Initialize the Output
+    output = []
+    
+    # Begin the Loop
+    try:
+        for i in trange(maxIter):
+            
+            # Get the Time Since Start
+            readTime = time.time()
+            readTimeStr  = time.strftime('%x %X', time.localtime(readTime))
+            readTimeStr += str(readTime % 1)[1:6]
+            startDT  = readTime - startTime
+            if startDT >= MAX_TIME:
+                break
+            
+            # Get the Channel Data
+            singleOutput  = [i+1, readTimeStr, startDT]
+            singleOutput += [adc.GetChannalValue(c)*scale for c in channels]
+            
+            # Store
+            output.append(singleOutput)
+            
+            # Wait
+            time.sleep(readDT)
+
+    except KeyboardInterrupt:
+        print('Exiting Read Loop. Press again to exit script.')
+    
+    # Return the Output
+    return output
+
+
+# --- Write Output ---------------------------------------------------------- #
+def writeoutput(output, chanNames, outFileName):
+    
+    # Convert to Pandas
+    outDF = pd.DataFrame(
+        data=output,
+        columns=['Iter', 'Read Time', 'Start dt (s)'] + chanNames
+    )
+    outDF = outDF.set_index('Iter')
+    
+    # Write to File
+    outDF.to_csv(outFileName)
 
 
 # --- Main Script ----------------------------------------------------------- #
 if __name__ == '__main__':
+    
+    # --- Script Constants -------------------------------------------------- #
+    # Get the Start Time
+    START_TIME = time.time()
     
     # --- Argument Parser --------------------------------------------------- #
     # Setup the Argument Parser
@@ -63,22 +122,30 @@ if __name__ == '__main__':
         '-s', '--frequency', default=1., type=float, metavar='f',
         help='Sets the sampling frequency (in Hz) between reads.'
     )
+    prsr.add_argument(
+        '-v', '--vref', default=5, type=int, metavar='V', choices=(3, 5),
+        help='''Sets the vref value for scaling analog inputs.
+                Default: 5. Choices: 3 or 5'''
+    )
 
     # Mutually Exclusive Group of Exit Criteria
     exitCri = prsr.add_mutually_exclusive_group()
     exitCri.add_argument(
-        '-i', '--maxiter', default=2**16, type=int, metavar='i',
+        '-i', '--maxiter', default=MAX_ITER, type=int, metavar='i',
         help='''The maximum number of read/write iterations to execute.
                 Default: 65536'''
     )
     exitCri.add_argument(
-        '-t', '--maxtime', default=3600., type=float, metavar='t',
+        '-t', '--maxtime', default=MAX_TIME, type=float, metavar='t',
         help='''The maximum length of time (in s) of read/write iterations to execute.
                 Default: 3600'''
     )
 
     # Parse
     args = prsr.parse_args()
+    
+    # Constant Scale Value
+    SCALE = args.vref/2**23
 
     # Check/Change Arguments
     # Get the Channels to Read
@@ -109,11 +176,11 @@ if __name__ == '__main__':
     
     # Get the ADC
     adc = getadc()
-    while(1):
-        ADC_Value = adc.ADS1256_GetAll()
-        print ("0 ADC = %lf"%(ADC_Value[0]))
-        print ("1 ADC = %lf"%(ADC_Value[1]))
-        print ("2 ADC = %lf"%(ADC_Value[2]))
-        print ("3 ADC = %lf"%(ADC_Value[3]))
-        time.sleep(READ_DT)
-        print ("\33[9A")
+    
+    # Get the Data & Write to File
+    output = readloop(
+        adc, channels=CHANS, scale=SCALE, readDT=READ_DT, startTime=START_TIME,
+        maxIter=args.maxiter, maxTime=args.maxtime
+    )
+    writeoutput(output, NAMES, OUT_FN)
+    
