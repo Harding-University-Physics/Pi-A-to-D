@@ -50,7 +50,7 @@ def readloop(adc, channels=(0,), scale=1, readDT=1, startTime=np.inf,
             readTimeStr  = time.strftime('%x %X', time.localtime(readTime))
             readTimeStr += str(readTime % 1)[1:6]
             startDT  = readTime - startTime
-            if startDT >= MAX_TIME:
+            if startDT >= maxTime:
                 break
 
             # Get the Channel Data
