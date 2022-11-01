@@ -10,7 +10,6 @@ import argparse      # For Parsing Commandline Arguments
 
 # Physical Computing Imports
 import ads               # Talking to the ADS1256
-import RPi.GPIO as GPIO  # GPIO interactions
 
 # 3rd Party Imports
 from tqdm import trange
