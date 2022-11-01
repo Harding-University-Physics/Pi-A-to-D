@@ -27,7 +27,7 @@ MAX_TIME = 3600.  # Seconds
 # --- Get the ADC ----------------------------------------------------------- #
 def getadc():
     """Gets the ADC object."""
-    
+
     # Initialize
     adc = ads.ADS1256(scanMode=1)     # Creates the Interface Object in Python
     adc.init()                        # Initializes the ADC
@@ -38,14 +38,14 @@ def getadc():
 def readloop(adc, channels=(0,), scale=1, readDT=1, startTime=np.inf,
              maxIter=MAX_ITER, maxTime=MAX_TIME):
     """The main loop to get the voltages from the channels"""
-    
+
     # Initialize the Output
     output = []
-    
+
     # Begin the Loop
     try:
         for i in trange(maxIter):
-            
+
             # Get the Time Since Start
             readTime = time.time()
             readTimeStr  = time.strftime('%x %X', time.localtime(readTime))
@@ -53,45 +53,45 @@ def readloop(adc, channels=(0,), scale=1, readDT=1, startTime=np.inf,
             startDT  = readTime - startTime
             if startDT >= MAX_TIME:
                 break
-            
+
             # Get the Channel Data
             singleOutput  = [i+1, readTimeStr, startDT]
             singleOutput += [adc.GetChannalValue(c)*scale for c in channels]
-            
+
             # Store
             output.append(singleOutput)
-            
+
             # Wait
             time.sleep(readDT)
 
     except KeyboardInterrupt:
         print('Exiting Read Loop. Press again to exit script.')
-    
+
     # Return the Output
     return output
 
 
 # --- Write Output ---------------------------------------------------------- #
 def writeoutput(output, chanNames, outFileName):
-    
+
     # Convert to Pandas
     outDF = pd.DataFrame(
         data=output,
         columns=['Iter', 'Read Time', 'Start dt (s)'] + chanNames
     )
     outDF = outDF.set_index('Iter')
-    
+
     # Write to File
     outDF.to_csv(outFileName)
 
 
 # --- Main Script ----------------------------------------------------------- #
 if __name__ == '__main__':
-    
+
     # --- Script Constants -------------------------------------------------- #
     # Get the Start Time
     START_TIME = time.time()
-    
+
     # --- Argument Parser --------------------------------------------------- #
     # Setup the Argument Parser
     prsr = argparse.ArgumentParser(description=__doc__)
@@ -143,7 +143,7 @@ if __name__ == '__main__':
 
     # Parse
     args = prsr.parse_args()
-    
+
     # Constant Scale Value
     SCALE = args.vref/2**23
 
@@ -155,7 +155,7 @@ if __name__ == '__main__':
     for c in CHANS:
         if c not in range(4):
             raise ValueError(f'{c} is not a valid channel number. Valid numbers are [0-3].')
-    
+
     # Set the Channel Names if not Provided / Else Check
     if args.names is None:
         NAMES = [f'Channel {c}' for c in CHANS]
@@ -163,24 +163,23 @@ if __name__ == '__main__':
         raise ValueError('Number of channel names does not match number of channels.')
     else:  # Other wise store the given names
         NAMES = [n.strip() for n in args.names.split(',')]
-    
+
     # Set the Output File
     OUT_FN = args.file
     if OUT_FN is not None and (path.exists(OUT_FN) and not args.overwrite):
         raise ValueError(
             f'File "{OUT_FN}" already exists.\n\tChange the file name or add the overwrite flag.'
         )
-    
+
     # Set the Read Delta Time
     READ_DT = 1/args.frequency
-    
+
     # Get the ADC
     adc = getadc()
-    
+
     # Get the Data & Write to File
     output = readloop(
         adc, channels=CHANS, scale=SCALE, readDT=READ_DT, startTime=START_TIME,
         maxIter=args.maxiter, maxTime=args.maxtime
     )
     writeoutput(output, NAMES, OUT_FN)
-    

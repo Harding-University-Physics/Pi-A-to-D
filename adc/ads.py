@@ -128,7 +128,7 @@ class ADS1256:
         config.spi_writebyte(buf)
 
         config.digital_write(self.cs_pin, GPIO.HIGH)#cs 1
-        config.delay_ms(1) 
+        config.delay_ms(1)
 
 
     def SetChannal(self, Channal):
@@ -176,7 +176,7 @@ class ADS1256:
         if (read & 0x800000):
             read &= 0xF000000
         return read
- 
+
     def GetChannalValue(self, Channel):
         if(self.scanMode == 0):# 0  Single-ended input  8 channel1 Differential input  4 channel
             if(Channel>=8):
@@ -192,9 +192,9 @@ class ADS1256:
                 return 0
             self.SetDiffChannal(Channel)
             self.WriteCmd(CMD['CMD_SYNC'])
-            # config.delay_ms(10) 
+            # config.delay_ms(10)
             self.WriteCmd(CMD['CMD_WAKEUP'])
-            # config.delay_ms(10) 
+            # config.delay_ms(10)
             Value = self.Read_ADC_Data()
         return Value
 
